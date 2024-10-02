@@ -19,3 +19,5 @@ sequence to the blueprint in the runcmd section:
  - echo "${resource.w5system.id}" | sed -e 's#^.*/##' >> /etc/MachineID
 ```
 
+The rollout concept is derived from from Benedikts ...
+https://yam-united.telekom.com/pages/src-dt-it/apps/wiki/wiki-4/list/view/b47cee95-c0b3-47d7-8c06-1e1f70ada339
