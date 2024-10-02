@@ -1,0 +1,24 @@
+---
+- name: "vRA: fetch all projects"
+  uri:
+    url: "{{vRA_sitename}}/project-service/api/projects"
+    method: GET
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{vRA_Authorization}}"
+      Content-Type:  "application/json"
+      Accept:        "application/json"
+  register: pRequest
+  delegate_to: localhost
+
+- set_fact:
+    vRA_projects: "{{pRequest.json.content}}"
+
+- name: "finded vRA projects"
+  debug:
+    var: vRA_projects
+  when:
+    - vRA_debug|bool is true
+
+

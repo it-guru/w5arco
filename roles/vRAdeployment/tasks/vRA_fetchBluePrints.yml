@@ -1,0 +1,21 @@
+---
+- name: Encode query parameters
+  set_fact:
+    query_params: "{{ item | default({}) | urlencode }}"
+
+- name: "vRA: fetch all blueprints (filtered by item)"
+  uri:
+    url: "{{vRA_sitename}}/blueprint/api/blueprints?{{query_params}}"
+    method: GET
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{vRA_Authorization}}"
+      Content-Type:  "application/json"
+      Accept:        "application/json"
+  register: pRequest
+  delegate_to: localhost
+
+- set_fact:
+    vRA_blueprints: "{{pRequest.json.content}}"
+

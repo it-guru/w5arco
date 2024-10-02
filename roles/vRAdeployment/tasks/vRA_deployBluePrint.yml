@@ -1,0 +1,43 @@
+---
+- name: "try to deploy with parameters:"
+  debug:
+    var: item
+  when:
+    - vRA_debug|bool is true
+
+- name: "try to deploy"
+  uri:
+    url: "{{vRA_sitename}}/blueprint/api/blueprint-requests?apiVersion=2019-09-12"
+    method: POST
+    use_proxy: false
+    use_netrc: false
+    body_format: json
+    body:
+      inputs:         "{{item.inputs}}"
+      blueprintId:    "{{item.blueprint.id}}"
+      desciprtion:    "Deploy by ansible"
+      deploymentName: "{{item.name}}"
+    headers:
+      Authorization: "{{vRA_Authorization}}"
+      Content-Type:  "application/json"
+      Accept:        "application/json"
+    status_code: 202
+  register: pResult
+  delegate_to: localhost
+
+- name: "blueprint request result"
+  debug:
+    var: pResult
+  when:
+    - vRA_debug|bool is true
+
+- set_fact:
+    vRA_blueprintRequest: "{{pResult.json}}"
+
+
+- name: "json result at vRA_blueprintRequest"
+  debug:
+    var: vRA_blueprintRequest
+  when:
+    - vRA_debug|bool is true
+

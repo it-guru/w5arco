@@ -1,0 +1,27 @@
+---
+- name: "vRA: fetch state of deployments/{{item.id}}"
+  uri:
+    url: "{{vRA_sitename}}/deployment/api/deployments/{{item.id}}"
+    method: GET
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{vRA_Authorization}}"
+      Content-Type:  "application/json"
+      Accept:        "application/json"
+  until: pRequest.json.status=="CREATE_SUCCESSFUL"
+  retries: 60
+  delay: 10
+  register: pRequest
+  delegate_to: localhost
+
+- name: "result of get deployment status for {{item.id}}"
+  debug:
+   var: pRequest
+  when:
+    - vRA_debug|bool is true
+
+- set_fact:
+    vRA_deplyments: "{{pRequest}}"
+
+

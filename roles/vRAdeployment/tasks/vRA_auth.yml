@@ -1,0 +1,40 @@
+---
+- name: "AuthLvl0: get Refresh-Token from {{vRA_sitename}}"
+  uri:
+    url: "{{vRA_sitename}}/csp/gateway/am/api/login?access_token"
+    method: POST
+    use_proxy: false
+    use_netrc: false
+    body_format: json
+    body:
+      username: "{{vRA_username}}"
+      password: "{{vRA_password}}"
+      domain:   "{{vRA_addomain}}"
+  register: AuthLvl0
+  delegate_to: localhost
+
+- name: "AuthLvl0 refresh token"
+  debug:
+    var: AuthLvl0.json.refresh_token
+  when:
+    - vRA_debug|bool is true
+   
+- name: "AuthLvl1: get tokenType/token {{vRA_sitename}}"
+  uri:
+    url: "{{vRA_sitename}}/iaas/api/login"
+    method: POST
+    use_proxy: false
+    use_netrc: false
+    body_format: json
+    body:
+      refreshToken: "{{AuthLvl0.json.refresh_token}}"
+  register: AuthLvl1
+  delegate_to: localhost
+
+- set_fact:
+    vRA_Authorization: "{{AuthLvl1.json.tokenType}} {{AuthLvl1.json.token}}"
+
+- debug:
+    var: vRA_Authorization
+  when:
+    - vRA_debug|bool is true

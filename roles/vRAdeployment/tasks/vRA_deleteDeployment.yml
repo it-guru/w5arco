@@ -1,0 +1,42 @@
+---
+- name: "vRA_deleteDeployment: Encode query parameters"
+  set_fact:
+    query_params: "{{ item | default({}) | urlencode }}"
+
+- name: "vRA_deleteDeployment: requested item for delete operation"
+  debug:
+    var: item
+  when:
+    - vRA_debug|bool is true
+
+
+- name: "vRA_delete deplyoment with id={{item.id}}"
+  uri:
+    url: "{{vRA_sitename}}/deployment/api/deployments/{{item.id}}"
+    method: DELETE
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{vRA_Authorization}}"
+      Content-Type:  "application/json"
+      Accept:        "application/json"
+  register: pRequest
+  delegate_to: localhost
+
+- name: "wait for normal delete"
+  wait_for:
+    timeout: 10
+  delegate_to: localhost
+
+- name: sleep 10min. , if previus status was CREATE_SUCCESSFUL
+  pause:
+     seconds: 600
+  when: item.status=="CREATE_SUCCESSFUL"
+
+- name: "vRA_deleteDeployment: result of delete request"
+  debug:
+    var: pRequest
+  when:
+    - vRA_debug|bool is true
+
+

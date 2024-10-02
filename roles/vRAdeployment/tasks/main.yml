@@ -1,0 +1,91 @@
+# tasks file for vRAdeployment
+# Interessant https://github.com/simplygeekuk/ansible-role-vmware_deploy_vro/blob/master/tasks/wait_for_vro_service.yml
+
+- name: generic deploy a blueprint in vRA
+  tags: [vRAdeployment]
+  block:
+
+   - name: planned new system configuration
+     debug: 
+        var: "vRA"
+
+   - name: "using credentials ..."
+     debug: 
+       msg:
+        - "vRA_username: {{ vRA_username }}"
+        - "vRA_addomain: {{ vRA_addomain }}"
+        - "vRA_password: {{ vRA_password | regex_replace('.','x')}}"
+        - "vRA_sitename: {{ vRA_sitename }}"
+     when:
+       - vRA_debug|bool is true
+
+
+   - name: load vRA_Authorization
+     include_tasks:
+        file: "vRA_auth.yml"
+
+   - name: fetch all projects to vRA_projects
+     include_tasks:
+        file: "vRA_fetchProjects.yml"
+
+
+   - name: fetch all blueprints to vRA_blueprints
+     include_tasks:
+        file: "vRA_fetchBluePrints.yml"
+     loop: "{{ [{'name':vRA.blueprint}]}}"   
+
+   - name: fetch all deployments to vRA_deployments
+     include_tasks:
+        file: "vRA_fetchDeployments.yml"
+     loop: "{{ [{'name':vRA.inputs.app_functionalias}]}}"   
+
+   - name: existing deployment
+     debug:
+        var: vRA_deplyments
+
+
+#   - name: simple exit
+#     assert:
+#        that: false
+#        fail_msg: "debug abbort"
+
+   - name: checking if system alread succesfull deployed
+     assert:
+        that: >
+           (vRA_deplyments|length == 0) or
+           (vRA_deplyments|length == 1 and vRA_deplyments[0].status=="CREATE_SUCCESSFUL" 
+            and force_reDeployment == vRA.inputs.app_hostname) or
+           (vRA_deplyments|length == 1 and vRA_deplyments[0].status!="CREATE_SUCCESSFUL" )
+        fail_msg: "reDeployment requested on existing system without force_reDeployment set"
+
+   - name: checking if deployment already running
+     assert:
+        that: >
+           (vRA_deplyments|length == 0) or
+           (vRA_deplyments|length == 1 and vRA_deplyments[0].status!="CREATE_INPROGRESS" )
+        fail_msg: "deplyoment already running for {{vRA.inputs.app_functionalias}}"
+
+   - name: delete deployment by vRA API
+     include_tasks:
+        file: "vRA_deleteDeployment.yml"
+     loop: "{{ vRA_deplyments }}"   
+     when: vRA_deplyments | length == 1
+
+   - name: initiate deployment of BluePrint
+     include_tasks:
+        file: "vRA_deployBluePrint.yml"
+     loop: >
+        {{ [{
+              'blueprint':vRA_blueprints[0],
+              'inputs':vRA.inputs,
+              'name':vRA.inputs.app_functionalias
+            }] 
+        }}   
+
+   - name: waitfor deployment (blueprint request) finish
+     include_tasks:
+        file: "vRA_waitforDeployment.yml"
+     loop: "{{ [{'id':vRA_blueprintRequest.deploymentId}]}}"   
+
+
+

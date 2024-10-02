@@ -1,0 +1,7 @@
+---
+
+vRA_username: "{{ lookup('env', 'W5ANSIBLE_ADUSER') }}"
+vRA_addomain: "{{ lookup('env', 'W5ANSIBLE_ADCONTROLER') }}"
+vRA_password: "{{ lookup('env', 'W5ANSIBLE_ADPASS') }}"
+vRA_sitename: "https://cus.val001c002mag1x.c002.mag1.fci.ts-ian.net"
+
