@@ -2,7 +2,7 @@ W5 Subproject
 
 ARCO
 
-<u>**A**nsible **R**ole **Co**llection</u>
+**A**nsible **R**ole **Co**llection
 
 This repo is a collection of roles to general purpose use. The roles
 are a wasted product split from my internal w5ansible project.

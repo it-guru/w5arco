@@ -1,0 +1,151 @@
+---
+#
+# install TasteOS client (auto download from ...
+#   https://tos-cn.telekom.de/resources/clients/client-unix/tos.tar
+# ... and cache it at ansible cache
+#
+- name: install tasteos client, configuration and 1st scan
+  tags: [install_tasteos]
+  when: tasteos_install|bool is true
+  block:
+   - name: "check ansible file cache dir"
+     ansible.builtin.file:
+        state: directory
+        path: "/var/cache/ansible"
+        owner: "root"
+        group: "root"
+        mode: '0755'
+     become: true
+
+   - name: create directory for tos.tar
+     file:
+       path: "{{ansiblesrv_var_base}}/webcache/tasteos"
+       state: directory
+       mode: '2770'
+     delegate_to: localhost
+
+   - name: Download latest tos.tar
+     ansible.builtin.get_url:
+       url: "https://tos-cn.telekom.de/resources/clients/client-unix/tos.tar"
+       dest: "{{ansiblesrv_var_base}}/webcache/tasteos/tos.tar"
+       backup: true
+       use_netrc: false
+       use_proxy: false
+       timeout: 5
+     ignore_errors: yes
+     delegate_to: localhost
+
+   - name: find all webcache files older than 10 days
+     find:
+       paths: "{{ansiblesrv_var_base}}/webcache/tasteos"
+       age: 10d
+       recurse: yes
+     register: oldFiles
+     delegate_to: localhost
+
+   - name: remove older than 10 days
+     file:
+       path: "{{ item.path }}" 
+       state: absent
+     with_items: "{{ oldFiles.files }}"
+     delegate_to: localhost
+
+   - name: check local cache
+     ansible.builtin.stat:
+       path: "{{ansiblesrv_var_base}}/webcache/tasteos/tos.tar"
+     register: localCache
+     delegate_to: localhost
+
+   - name: Fail to find a webCached tos.tar
+     fail:
+       msg: "Whoops! can not find a useable tos.tar"
+     when: localCache.stat.exists is false
+     delegate_to: localhost
+
+   - name: transfer local cached tos.tar to remote system
+     copy:
+       src: "{{localCache.stat.path}}"
+       dest: "/var/cache/ansible/tos.tar"
+       mode: 0700
+       owner: root
+       group: root
+     when: localCache.stat.exists
+     become: true
+
+   - name: check remote cache
+     ansible.builtin.stat:
+       path: "/var/cache/ansible/tos.tar"
+     register: remoteCache
+     become: true
+
+   - name: tos client.sh check
+     ansible.builtin.stat:
+       path: "/opt/tos-client/client.sh"
+     register: clientInst
+     become: true
+
+   - name: "run install script TasteOS tos.tar"
+     shell: "mkdir /opt/tos-client;tar -xvf /var/cache/ansible/tos.tar  -C /opt/tos-client --strip-components 1"
+     ignore_errors: true
+     when: clientInst.stat.exists is false
+     become: true
+
+   - name: transfer config.sh
+     ansible.builtin.template:
+       src:  config.sh
+       dest: /opt/tos-client/config.sh
+       owner: "root"
+       group: "root"
+       mode: '0600'
+     become: true
+
+   - name: "run client.sh -m reg"
+     shell: "cd /opt/tos-client && ./client.sh --force -m reg"
+     register: regCmd
+     ignore_errors: true
+     when: clientInst.stat.exists is false
+     become: true
+
+   - name: "reg result"
+     debug:
+       var: regCmd
+
+   - name: "run first scan client.sh -m scan"
+     shell: "cd /opt/tos-client && ./client.sh -m scan"
+     register: scanCmd
+     ignore_errors: true
+     when: clientInst.stat.exists is false
+     become: true
+
+   - name: "scan result"
+     debug:
+       var: scanCmd
+
+   - name: Creates dayly scan job
+     ansible.builtin.cron:
+       name: TasteOS
+       minute: "{{ 59 | random(seed=inventory_hostname) }}"
+       hour: "23"
+       job: "/opt/tos-client/client.sh -m scan > /dev/null"
+     become: true
+
+
+#   - name: transfer local cached mysqldump-ng to remote system
+#     copy:
+#       src: "{{remoteCache.stat.path}}"
+#       remote_src: true
+#       dest: "/usr/local/bin/mysqldump-ng"
+#       mode: 0755
+#       owner: root
+#       group: root
+#     when: remoteCache.stat.exists
+#     become: true
+
+
+
+
+
+
+
+
+
