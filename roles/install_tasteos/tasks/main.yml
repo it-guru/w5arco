@@ -14,7 +14,7 @@
         path: "/var/cache/ansible"
         owner: "root"
         group: "root"
-        mode: '0755'
+        mode: '0750'
      become: true
 
    - name: create directory for tos.tar
