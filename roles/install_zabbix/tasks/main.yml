@@ -53,6 +53,7 @@
        path: "{{ansiblesrv_var_base}}/webcache/zabbix/"
        state: directory
        mode: '2770'
+     run_once: true
      delegate_to: localhost
 
 
@@ -65,6 +66,7 @@
        use_netrc: false
        timeout: 60
      register: DownloadResult
+     run_once: true
      ignore_errors: yes
      delegate_to: localhost
 
@@ -75,6 +77,7 @@
      notify:
         - notifyDownloadFail
      when: DownloadResult.failed is true
+     run_once: true
      ignore_errors: true
 
    - name: check local (ansible server) cache
@@ -119,7 +122,7 @@
      become: true
 
    - name: Install Zabbix Agent
-     ansible.builtin.shell: "./install.sh -proxyip {{zabbix_proxyip}} >> zabbix_install_log.txt"
+     ansible.builtin.shell: "./install.sh -ni -proxyip {{zabbix_proxyip}} >> zabbix_install_log.txt"
      args:
        chdir: /tmp/zabbixinst.temp/zabbix_installer
        creates: /opt/zabbix_agent/sbin/zabbix_agentd
