@@ -1,0 +1,23 @@
+---
+# handlers file for install_zabbix
+
+- name: zabbix restart 
+  service:
+    name: zabbix_agent
+    state: restarted
+  listen: restartzabbix
+  become: true
+
+- name:  notify download fail
+  community.general.mail:
+    from: ansible
+    to: "{{global_Operations_EMail}}"
+    subject: "Download {{zappix_agent_srcbase}}/{{zappix_agent_srctar}} failed"
+    body: >
+        Please check the download source ...
+        {{zappix_agent_srcbase}}/{{zappix_agent_srctar}}
+  ignore_errors: true
+  delegate_to: localhost
+  listen: notifyDownloadFail
+  
+

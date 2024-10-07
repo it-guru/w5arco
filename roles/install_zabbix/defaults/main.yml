@@ -1,0 +1,8 @@
+---
+ansiblesrv_var_base: "/usr/var/ansible"
+global_Operations_EMail: "root"
+
+zabbix_proxyip: "0.0.0.0"
+zappix_agent_srcbase: "https://pacman.telekom.de/pkgshare/10_ZABBIX"
+zappix_agent_srctar:  "zabbix_agent_installer.unix.latest.tar"
+zappix_agent_targetdir:  "/opt/zabbix_agent"

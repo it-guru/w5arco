@@ -1,0 +1,139 @@
+---
+- name: install ZABBIX Agent
+  tags: [install_zabbix]
+  when: zabbix_install | bool is true
+  block:
+   - name: create zabbix group - gid does not matter
+     ansible.builtin.group:
+       name: zabbix
+       state: present
+     become: true
+
+   - name: create zabbix user - uid does not matter
+     ansible.builtin.user:
+       name: zabbix
+       group: zabbix
+       expires: -1
+       comment: zabbix monitoring user
+     become: true
+
+   - name: "check ansible file cache dir"
+     ansible.builtin.file:
+        state: directory
+        path: "/var/cache/ansible"
+        owner: "root"
+        group: "root"
+        mode: '0750'
+     become: true
+
+   - name: check cache dir
+     stat: path="/var/cache/ansible"
+     register: AnsibleCacheDir
+     become: true
+
+   - name: "check /opt/zabbix_agent target directory"
+     ansible.builtin.file:
+        state: directory
+        path: "/opt/zabbix_agent"
+        owner: "zabbix"
+        group: "zabbix"
+        mode: '0755'
+     become: true
+     when: 
+        - not ansible_check_mode 
+
+   - name: check already installed Zabbix Agent
+     ansible.builtin.stat:
+       path: "/opt/zabbix_agent/sbin/zabbix_agentd"
+     register: alreadyInst
+     become: true
+
+   - name: create directory for ansible server cache dir
+     file:
+       path: "{{ansiblesrv_var_base}}/webcache/zabbix/"
+       state: directory
+       mode: '2770'
+     delegate_to: localhost
+
+
+   - name: "Download {{zappix_agent_srcbase}}/{{zappix_agent_srctar}}"
+     ansible.builtin.get_url:
+       url: "{{zappix_agent_srcbase}}/{{zappix_agent_srctar}}"
+       dest: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zappix_agent_srctar}}"
+       backup: true
+       use_proxy: false
+       use_netrc: false
+       timeout: 60
+     register: DownloadResult
+     ignore_errors: yes
+     delegate_to: localhost
+
+   - name: assert download success
+     debug: 
+        var: DownloadResult
+     changed_when: DownloadResult.failed is true
+     notify:
+        - notifyDownloadFail
+     when: DownloadResult.failed is true
+     ignore_errors: true
+
+   - name: check local (ansible server) cache
+     ansible.builtin.stat:
+       path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zappix_agent_srctar}}"
+     register: localCache
+     delegate_to: localhost
+
+   - name: "Fail to find a webCached {{zappix_agent_srctar}}"
+     fail:
+       msg: "Whoops! can not find a useable {{zappix_agent_srctar}}"
+     when: localCache.stat.exists is false
+     delegate_to: localhost
+
+
+   - name: Copy file
+     ansible.builtin.copy:
+       src: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zappix_agent_srctar}}"
+       dest: "/var/cache/ansible"
+     when: AnsibleCacheDir.stat.exists==true
+     become: true
+
+   - name: "transfer local cached {{zappix_agent_srctar}} to remote system"
+     copy:
+       src: "{{localCache.stat.path}}"
+       dest: "/var/cache/ansible/{{zappix_agent_srctar}}"
+     when: localCache.stat.exists
+     become: true
+
+   - name: check remote cache
+     ansible.builtin.stat:
+       path: "/var/cache/ansible/{{zappix_agent_srctar}}"
+     register: remoteCache
+     become: true
+
+   - name: "run remote unpack of zabbix agent"
+     shell: "mkdir /tmp/zabbixinst.temp;tar -xvf /var/cache/ansible/{{zappix_agent_srctar}}  -C /tmp/zabbixinst.temp"
+     ignore_errors: true
+     when: 
+        - remoteCache.stat.exists is true
+        - alreadyInst.stat.exists is false
+     become: true
+
+   - name: Install Zabbix Agent
+     ansible.builtin.shell: "./install.sh -proxyip {{zabbix_proxyip}} >> zabbix_install_log.txt"
+     args:
+       chdir: /tmp/zabbixinst.temp/zabbix_installer
+       creates: /opt/zabbix_agent/sbin/zabbix_agentd
+     when: 
+        - remoteCache.stat.exists is true
+        - alreadyInst.stat.exists is false
+        - not ansible_check_mode
+     notify: restartzabbix
+     become: true
+
+   - name: "cleanup temp dir /tmp/zabbixinst.temp"
+     ansible.builtin.file:
+        state: absent
+        path: "/tmp/zabbixinst.temp"
+     when: 
+        - alreadyInst.stat.exists is false
+     become: true
