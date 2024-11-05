@@ -129,17 +129,12 @@
        job: "/opt/tos-client/client.sh -m scan > /dev/null"
      become: true
 
+  rescue:
+   - name: "block rescue to ensure following roles processing"
+     debug:
+       msg: "error ocured - there is need to handle it manualy"
 
-#   - name: transfer local cached mysqldump-ng to remote system
-#     copy:
-#       src: "{{remoteCache.stat.path}}"
-#       remote_src: true
-#       dest: "/usr/local/bin/mysqldump-ng"
-#       mode: 0755
-#       owner: root
-#       group: root
-#     when: remoteCache.stat.exists
-#     become: true
+
 
 
 
