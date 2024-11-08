@@ -1,0 +1,3 @@
+tasteos_install:      0
+ansiblesrv_var_base: "/var/w5ansible"
+

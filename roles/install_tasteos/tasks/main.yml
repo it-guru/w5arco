@@ -24,31 +24,54 @@
        mode: '2770'
      delegate_to: localhost
 
-   - name: Download latest tos.tar
-     ansible.builtin.get_url:
-       url: "https://tos-cn.telekom.de/resources/clients/client-unix/tos.tar"
-       dest: "{{ansiblesrv_var_base}}/webcache/tasteos/tos.tar"
-       backup: true
-       use_netrc: false
-       use_proxy: false
-       timeout: 5
-     ignore_errors: yes
-     delegate_to: localhost
 
-   - name: find all webcache files older than 10 days
-     find:
-       paths: "{{ansiblesrv_var_base}}/webcache/tasteos"
-       age: 10d
-       recurse: yes
-     register: oldFiles
-     delegate_to: localhost
+   - name: "Download file with cache handling on ansible control node"
+     block: 
+      - name: "Download latest tos.tar client from TasteOS Site"
+        ansible.builtin.get_url:
+          url: "{{srcurl}}"
+          dest: "{{ansiblesrv_var_base}}/webcache/tasteos/tos.tar"
+          backup: true
+          use_netrc: false
+          timeout: 60
+          force: true
+          mode: 0660
+          group: ansible
+        ignore_errors: yes
+        delegate_to: localhost
+        register: DownloadResult
 
-   - name: remove older than 10 days
-     file:
-       path: "{{ item.path }}" 
-       state: absent
-     with_items: "{{ oldFiles.files }}"
-     delegate_to: localhost
+      # touch is needed, because ansible not updates mdate on successfull
+      # download from source-url
+      - name: "touch file, if download was OK"
+        file:
+          state: "file"
+          path: "{{ansiblesrv_var_base}}/webcache/tasteos/tos.tar"
+          modification_time: "now"
+        ignore_errors: true
+        changed_when: false
+        when:
+          - DownloadResult.status_code==200
+        delegate_to: localhost
+
+      - name: find all webcache files older than 30 days
+        find:
+          paths: "{{ansiblesrv_var_base}}/webcache/tasteos"
+          age: 30d
+          recurse: yes
+        register: oldFiles
+        delegate_to: localhost
+
+      - name: remove older than 30 days
+        file:
+          path: "{{ item.path }}" 
+          state: absent
+        with_items: "{{ oldFiles.files }}"
+        delegate_to: localhost
+     rescue:
+      - name: "rescue WebCache donwload-Handling"
+        debug:
+          msg: "error ocured - there is need to handle it manualy"
 
    - name: check local cache
      ansible.builtin.stat:
