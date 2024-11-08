@@ -1,0 +1,1 @@
+srcurl: "{{zabbix_agent_srcbase}}/{{zabbix_agent_srctar}}"

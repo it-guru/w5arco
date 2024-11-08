@@ -57,64 +57,89 @@
      delegate_to: localhost
 
 
-   - name: "Download {{zappix_agent_srcbase}}/{{zappix_agent_srctar}}"
-     ansible.builtin.get_url:
-       url: "{{zappix_agent_srcbase}}/{{zappix_agent_srctar}}"
-       dest: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zappix_agent_srctar}}"
-       backup: true
-       use_proxy: false
-       use_netrc: false
-       timeout: 60
-     register: DownloadResult
-     run_once: true
-     ignore_errors: yes
-     delegate_to: localhost
+   - name: "Download file with cache handling on ansible control node"
+     block: 
+      - name: "Download latest zabbix client from Zabbix Site"
+        ansible.builtin.get_url:
+          url: "{{srcurl}}"
+          dest: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
+          backup: true
+          use_netrc: false
+          timeout: 60
+          force: true
+          mode: 0660
+          group: ansible
+        ignore_errors: yes
+        delegate_to: localhost
+        register: DownloadResult
 
-   - name: assert download success
-     debug: 
-        var: DownloadResult
-     changed_when: DownloadResult.failed is true
-     notify:
-        - notifyDownloadFail
-     when: DownloadResult.failed is true
-     run_once: true
-     ignore_errors: true
+      # touch is needed, because ansible not updates mdate on successfull
+      # download from source-url
+      - name: "touch file, if download was OK"
+        file:
+          state: "file"
+          path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
+          modification_time: "now"
+        ignore_errors: true
+        changed_when: false
+        when:
+          - DownloadResult.status_code==200
+        delegate_to: localhost
+
+      - name: find all webcache files older than 30 days
+        find:
+          paths: "{{ansiblesrv_var_base}}/webcache/zabbix"
+          age: 30d
+          recurse: yes
+        register: oldFiles
+        delegate_to: localhost
+
+      - name: remove older than 30 days
+        file:
+          path: "{{ item.path }}" 
+          state: absent
+        with_items: "{{ oldFiles.files }}"
+        delegate_to: localhost
+     rescue:
+      - name: "rescue WebCache donwload-Handling"
+        debug:
+          msg: "error ocured - there is need to handle it manualy"
 
    - name: check local (ansible server) cache
      ansible.builtin.stat:
-       path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zappix_agent_srctar}}"
+       path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
      register: localCache
      delegate_to: localhost
 
-   - name: "Fail to find a webCached {{zappix_agent_srctar}}"
+   - name: "Fail to find a webCached {{zabbix_agent_srctar}}"
      fail:
-       msg: "Whoops! can not find a useable {{zappix_agent_srctar}}"
+       msg: "Whoops! can not find a useable {{zabbix_agent_srctar}}"
      when: localCache.stat.exists is false
      delegate_to: localhost
 
 
    - name: Copy file
      ansible.builtin.copy:
-       src: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zappix_agent_srctar}}"
+       src: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
        dest: "/var/cache/ansible"
      when: AnsibleCacheDir.stat.exists==true
      become: true
 
-   - name: "transfer local cached {{zappix_agent_srctar}} to remote system"
+   - name: "transfer local cached {{zabbix_agent_srctar}} to remote system"
      copy:
        src: "{{localCache.stat.path}}"
-       dest: "/var/cache/ansible/{{zappix_agent_srctar}}"
+       dest: "/var/cache/ansible/{{zabbix_agent_srctar}}"
      when: localCache.stat.exists
      become: true
 
    - name: check remote cache
      ansible.builtin.stat:
-       path: "/var/cache/ansible/{{zappix_agent_srctar}}"
+       path: "/var/cache/ansible/{{zabbix_agent_srctar}}"
      register: remoteCache
      become: true
 
    - name: "run remote unpack of zabbix agent"
-     shell: "mkdir /tmp/zabbixinst.temp;tar -xvf /var/cache/ansible/{{zappix_agent_srctar}}  -C /tmp/zabbixinst.temp"
+     shell: "mkdir /tmp/zabbixinst.temp;tar -xvf /var/cache/ansible/{{zabbix_agent_srctar}}  -C /tmp/zabbixinst.temp"
      ignore_errors: true
      when: 
         - remoteCache.stat.exists is true
@@ -140,3 +165,9 @@
      when: 
         - alreadyInst.stat.exists is false
      become: true
+
+  rescue:
+   - name: "block rescue to ensure following roles processing"
+     debug:
+       msg: "error ocured - there is need to handle it manualy"
+
