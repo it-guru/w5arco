@@ -1,0 +1,33 @@
+# tasks file for vRAdeployment
+# Interessant https://github.com/simplygeekuk/ansible-role-vmware_deploy_vro/blob/master/tasks/wait_for_vro_service.yml
+
+- name: generic deploy a blueprint in vRA
+  tags: [vRAdeployment]
+  block:
+
+   - name: "using credentials ..."
+     debug: 
+       msg:
+        - "vRA_username: {{ vRA_username }}"
+        - "vRA_addomain: {{ vRA_addomain }}"
+        - "vRA_password: {{ vRA_password | regex_replace('.','x')}}"
+        - "vRA_sitename: {{ vRA_sitename }}"
+     when:
+       - vRA_debug|bool is true
+
+
+   - name: load vRA_Authorization
+     include_tasks:
+        file: "vRA_auth.yml"
+
+   - name: fetch all mappings
+     include_tasks:
+        file: "vRA_getImageMappings.yml"
+
+#   - name: existing deployment
+#     debug:
+#        var: vRA_images
+
+
+
+

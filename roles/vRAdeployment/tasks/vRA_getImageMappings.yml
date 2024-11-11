@@ -1,0 +1,21 @@
+---
+- name: "vRA: fetch all mappings"
+  uri:
+    url: "{{vRA_sitename}}/v1/images/mappings"
+    method: GET
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{vRA_Authorization}}"
+      Content-Type:  "application/json"
+      Accept:        "application/json"
+  register: pRequest
+  delegate_to: localhost
+
+- name: "pRequest debug"
+  debug:
+    var: pRequest
+
+#- set_fact:
+#    vRA_images: "{{pRequest.json}}"
+
