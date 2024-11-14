@@ -77,7 +77,7 @@
       # download from source-url
       - name: "touch file, if download was OK"
         file:
-          state: "file"
+          state: "touch"
           path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
           modification_time: "now"
         ignore_errors: true

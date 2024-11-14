@@ -45,7 +45,7 @@
       # download from source-url
       - name: "touch file, if download was OK"
         file:
-          state: "file"
+          state: "touch"
           path: "{{ansiblesrv_var_base}}/webcache/tasteos/tos.tar"
           modification_time: "now"
         ignore_errors: true
