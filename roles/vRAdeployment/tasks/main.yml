@@ -5,6 +5,24 @@
   tags: [vRAdeployment]
   block:
 
+   - name: "calculate ansible_ctrlnode name: get uname -n"
+     shell:
+        cmd: "uname -n"
+     register: get_uname
+     delegate_to: "localhost"
+
+
+   - name: "calculate ansible control node name"
+     set_fact: 
+        ansiblectrlnode_inventory_hostname: "{{get_uname.stdout}}"
+
+   - name: "collect functional alias ansiblectrlnode_inventory_hostname"
+     set_fact: 
+        ansiblectrlnode_inventory_hostname: "{{groups[ansiblectrlnode_inventory_hostname][0]}}"
+     when: 
+        - ansiblectrlnode_inventory_hostname in groups
+        - groups[ansiblectrlnode_inventory_hostname] | length == 1
+
    - name: planned new system configuration
      debug: 
         var: "vRA"
@@ -16,6 +34,7 @@
         - "vRA_addomain: {{ vRA_addomain }}"
         - "vRA_password: {{ vRA_password | regex_replace('.','x')}}"
         - "vRA_sitename: {{ vRA_sitename }}"
+        - "ansiblectrlnode_inventory_hostname: {{ ansiblectrlnode_inventory_hostname }}"
      when:
        - vRA_debug|bool is true
 
@@ -23,6 +42,11 @@
    - name: load vRA_Authorization
      include_tasks:
         file: "vRA_auth.yml"
+
+   #- name: "debug breakpoint"
+   #  fail:
+   #    msg: "temp breakpoint"
+   #  when: true
 
    - name: fetch all projects to vRA_projects
      include_tasks:
