@@ -28,9 +28,9 @@
     timeout: 10
   delegate_to: localhost
 
-- name: sleep 10min. , if previus status was CREATE_SUCCESSFUL
+- name: sleep 3min. , if previus status was CREATE_SUCCESSFUL
   pause:
-     seconds: 600
+     seconds: 180
   when: item.status=="CREATE_SUCCESSFUL"
 
 - name: "vRA_deleteDeployment: result of delete request"
