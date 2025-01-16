@@ -16,6 +16,10 @@
   register: pRequest
   delegate_to: localhost
 
+- name: "found blueprints"
+  debug:
+    var: pRequest.json.content
+
 - set_fact:
     vRA_blueprints: "{{pRequest.json.content}}"
 
