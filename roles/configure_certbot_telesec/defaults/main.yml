@@ -1,0 +1,18 @@
+###############################################
+#
+# at leeast, these parameters are need
+# to be set, if configure_process should start
+#
+httpd_sitename:      ""
+acme_url:            ""
+acme_key_identifier: ""
+acme_hmac_key:       ""
+###############################################
+
+acme_hash_algorithm: "HS256"
+acme_document_root:  "/var/www/html"
+acme_rsa_key_size:   "4096"
+
+acme_auto_renew_minute:  "23"
+acme_auto_renew_hour:    "5"
+acme_notification_email: "null@null.com" 

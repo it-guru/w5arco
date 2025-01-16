@@ -1,0 +1,23 @@
+---
+# tasks file for install_certbot
+- name: install certbot for ACME cert signing process
+  tags: [install_certbot]
+  when: certbot_install | bool is true
+  block:
+
+   - name: "install certbot via yum"
+     ansible.builtin.yum:
+       name:
+         - certbot
+         - python3-certbot-apache
+       state: installed
+     become: true
+
+  rescue:
+   - name: "block rescue to ensure following roles processing"
+     debug:
+       msg: "error ocured - there is need to handle it manualy"
+
+
+
+

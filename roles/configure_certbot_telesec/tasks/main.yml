@@ -1,0 +1,65 @@
+---
+- name: "configure certbot and do initial config for {{httpd_sitename | default('???')}}"
+  tags: [configure_certbot_telesec]
+  when: 
+     - certbot_install | bool is true
+     - httpd_sitename|default('') != ""
+     - acme_url|default('') != ""
+     - acme_key_identifier|default('') != ""
+     - acme_hmac_key|default('') != ""
+  block:
+   - name: "debug start certbot config"
+     debug:
+       msg:
+         - "httpd_sitename = {{httpd_sitename}}"
+         - "acme_url       = {{acme_url}}"
+         - "acme_key_identifier = {{acme_key_identifier}}"
+         - "acme_hmac_key       = {{acme_hmac_key}}"
+
+   - name: "register deploy hook"
+     template:
+       src:  "restartApache.sh.j2"
+       dest: "/etc/letsencrypt/renewal-hooks/deploy/restartApache.sh"
+       owner: root
+       group: root
+       mode: '0755'
+     become: true
+
+   - name: Register certbot
+     shell: |
+       certbot certonly --eab-kid "{{acme_key_identifier}}" --eab-hmac-key "{{acme_hmac_key}}" --server "{{acme_url}}" --email "{{acme_notification_email}}" --agree-tos --webroot -d "{{httpd_sitename}}" -n --webroot-path "{{acme_document_root}}" --rsa-key-size "{{acme_rsa_key_size}}"
+     args:
+       creates: "/etc/letsencrypt/renewal/{{httpd_sitename}}.conf"
+     become: true
+
+   - name: "install renew job"
+     ansible.builtin.cron:
+       name: "certbot renew"
+       minute: "{{acme_auto_renew_minute}}"
+       hour: "{{acme_auto_renew_hour}}"
+       job: "certbot -q renew"
+     become: true
+
+  rescue:
+   - name: "block rescue to ensure following roles processing"
+     debug:
+       msg: "error ocured - there is need to handle it manualy"
+
+
+#
+# Minimum/recomented requirements in ssl.conf of apache
+#
+#ServerName xxxxx.telekom.de
+#SSLCertificateFile /etc/letsencrypt/live/xxx.telekom.de/fullchain.pem
+#SSLCertificateKeyFile /etc/letsencrypt/live/xxx.telekom.de/privkey.pem
+#SSLEngine on
+#SSLProtocol             all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
+#SSLCipherSuite          ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+#SSLHonorCipherOrder     off
+#SSLSessionTickets       off
+
+#SSLOptions +StrictRequire
+
+
+
+
