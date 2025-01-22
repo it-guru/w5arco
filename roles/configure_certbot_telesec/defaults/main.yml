@@ -13,6 +13,11 @@ acme_hash_algorithm: "HS256"
 acme_document_root:  "/var/www/html"
 acme_rsa_key_size:   "4096"
 
-acme_auto_renew_minute:  "23"
+# acme_auto_renew_minute in a range of 0-58
+acme_auto_renew_minute:  "23"   
 acme_auto_renew_hour:    "5"
 acme_notification_email: "null@null.com" 
+
+# do a monthly force renew at day of month n (acme_auto_renew_minute+1) is used
+# (to ensure all processes are working correctly)
+acme_force_renew_day:    ""

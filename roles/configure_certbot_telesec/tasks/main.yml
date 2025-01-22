@@ -32,13 +32,31 @@
        creates: "/etc/letsencrypt/renewal/{{httpd_sitename}}.conf"
      become: true
 
+   #
+   # a random wait is not needed - to ensuren a overload prevention on ca.
+   # see --no-random-sleep-on-renew discussion on 
+   # https://github.com/NginxProxyManager/nginx-proxy-manager/issues/238
+   #
    - name: "install renew job"
      ansible.builtin.cron:
        name: "certbot renew"
+       state: "present"
        minute: "{{acme_auto_renew_minute}}"
        hour: "{{acme_auto_renew_hour}}"
        job: "certbot -q renew"
      become: true
+
+
+   - name: "install force renew job"
+     ansible.builtin.cron:
+       name: "certbot force renew"
+       minute: "{{(acme_auto_renew_minute|int)+1}}"
+       day: "{{acme_force_renew_day}}"
+       hour: "{{acme_auto_renew_hour}}"
+       job: "certbot renew -q --force-renewal"
+     become: true
+     when: 
+       - acme_force_renew_day|default('') != ""
 
   rescue:
    - name: "block rescue to ensure following roles processing"
