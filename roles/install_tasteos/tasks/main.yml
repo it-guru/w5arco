@@ -4,9 +4,40 @@
 #   https://tos-cn.telekom.de/resources/clients/client-unix/tos.tar
 # ... and cache it at ansible cache
 #
+- name: "checking for /etc/MachineID"
+  tags: [install_tasteos]
+  ansible.builtin.stat:
+    path: "/etc/MachineID"
+  register: etcMachineID
+
+- name: "check /opt/tos-client"
+  tags: [install_tasteos]
+  ansible.builtin.stat:
+    path: "/opt/tos-client"
+  register: optTosClient
+
+- name: "check /opt/tos-client/config.sh"
+  tags: [install_tasteos]
+  ansible.builtin.stat:
+    path: "/opt/tos-client"
+  register: optTosClientConfig
+
+- name: "remove /opt/tos-client due new /etc/MachineID"
+  tags: [install_tasteos]
+  file:
+    path: "/opt/tos-client"
+    state: absent
+  become: true
+  when: 
+    - etcMachineID.stat.exists is true 
+    - optTosClientConfig.stat.exists is true 
+    - etcMachineID.stat.mtime>optTosClientConfig.stat.mtime
+
 - name: install tasteos client, configuration and 1st scan
   tags: [install_tasteos]
-  when: tasteos_install|bool is true
+  when: 
+    - tasteos_install|bool is true
+    - TASTEOS_MACHINE_NUMBER!='' or etcMachineID.stat.exists
   block:
    - name: "check ansible file cache dir"
      ansible.builtin.file:
@@ -158,7 +189,31 @@
        msg: "error ocured - there is need to handle it manualy"
 
 
+- name: uninstall taseos
+  tags: [install_tasteos]
+  when: 
+    - TASTEOS_MACHINE_NUMBER=='' 
+    - etcMachineID.stat.exists is false
+  block:
+   - name: "check dayly scan job"
+     ansible.builtin.cron:
+       state: absent
+       name: TasteOS
+       minute: "{{ 59 | random(seed=inventory_hostname) }}"
+       hour: "23"
+       job: "/opt/tos-client/client.sh -m scan > /dev/null"
+     become: true
 
+   - name: "remove /opt/tos-client"
+     file:
+       path: "/opt/tos-client"
+       state: absent
+     become: true
+
+  rescue:
+   - name: "block rescue to ensure following roles processing"
+     debug:
+       msg: "error ocured - there is need to handle it manualy"
 
 
 
