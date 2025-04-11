@@ -35,7 +35,7 @@ MACHINE_ID=""
 # The Machine Number is a user defined optional value that is part of the
 # Machine's metadata. It can be used for environment specific machine identifiers
 # such as Cloud Instance IDs or IDs from external inventory systems.
-MACHINE_NUMBER="$(cat /etc/MachineID)"
+MACHINE_NUMBER="{{'$(cat /etc/MachineID)' if TASTEOS_MACHINE_NUMBER=='' else TASTEOS_MACHINE_NUMBER}}"
 
 # This setting can be used to define the Risk Level during registration.
 # Available Risk-IDs can be looked up in the UI.
