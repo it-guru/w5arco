@@ -147,7 +147,7 @@
      become: true
 
    - name: Install Zabbix Agent
-     ansible.builtin.shell: "./install.sh -ni -proxyip {{zabbix_proxyip}} >> zabbix_install_log.txt"
+     ansible.builtin.shell: "./install.sh -ignore_install_in_root -ni -proxyip {{zabbix_proxyip}} >> zabbix_install_log.txt"
      args:
        chdir: /tmp/zabbixinst.temp/zabbix_installer
        creates: /opt/zabbix_agent/sbin/zabbix_agentd
