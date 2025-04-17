@@ -21,3 +21,6 @@ acme_notification_email: "null@null.com"
 # do a monthly force renew at day of month n (acme_auto_renew_minute+1) is used
 # (to ensure all processes are working correctly)
 acme_force_renew_day:    ""
+
+
+acme_force_register:    false

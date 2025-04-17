@@ -3,19 +3,50 @@
   tags: [configure_certbot_telesec]
   when: 
      - certbot_install | bool is true
-     - httpd_sitename|default('') != ""
      - acme_url|default('') != ""
      - acme_key_identifier|default('') != ""
      - acme_hmac_key|default('') != ""
+
   block:
+   - name: "calc registername path"
+     set_fact:
+        acme_register_name_path: "{{inventory_hostname}}"
+
+   - name: "add httpd_sitename if specified"
+     set_fact: 
+        acme_register_name_path: "{{acme_register_name_path}},{{httpd_sitename}}"
+     when:
+        - httpd_sitename|default('') != ""
+        - httpd_sitename!=inventory_hostname
+
+   - name: "get ansible_fqdn_host"
+     shell: "set -- $(nslookup ede15t | grep Name:) ; echo $2"
+     register: ansible_fqdn_hostname
+     changed_when: False
+     ignore_errors: true
+
+   - name: "stripe ansible_fqdn_host to 1st Line"
+     set_fact: 
+       ansible_fqdn_hostname: "{{ansible_fqdn_hostname.stdout_lines[0]|default('')}}"
+
+   - name: "add ansible_fqdn_hostname if specified"
+     set_fact: 
+        acme_register_name_path: "{{acme_register_name_path}},{{ansible_fqdn_hostname}}"
+     when:
+        - ansible_fqdn_hostname|default('') != ""
+        - ansible_fqdn_hostname!=inventory_hostname
+        - ansible_fqdn_hostname!=httpd_sitename
+
    - name: "debug start certbot config"
      debug:
        msg:
-         - "httpd_sitename = {{httpd_sitename}}"
-         - "acme_url       = {{acme_url}}"
-         - "acme_key_identifier = {{acme_key_identifier}}"
-         - "acme_hmac_key       = {{acme_hmac_key}}"
-
+         - "acme_force_register     = {{acme_force_register}}"
+         - "acme_register_name_path = {{acme_register_name_path}}"
+         - "ansible_fqdn_hostname   = {{ansible_fqdn_hostname}}"
+         - "acme_url                = {{acme_url}}"
+         - "acme_key_identifier     = {{acme_key_identifier}}"
+         - "acme_hmac_key           = {{acme_hmac_key}}"
+ 
    - name: "register deploy hook"
      template:
        src:  "restartApache.sh.j2"
@@ -25,11 +56,74 @@
        mode: '0755'
      become: true
 
-   - name: Register certbot
+   - name: "ensure /etc/letsencrypt"
+     file:
+       state: directory
+       path:  "/etc/letsencrypt"
+       mode:  0755
+       owner: root
+       group: root
+     become: true
+
+   - name: "ensure /etc/letsencrypt/live"
+     file:
+       state: directory
+       path:  "/etc/letsencrypt/live"
+       mode:  0755
+       owner: root
+       group: root
+     become: true
+
+   - name: "ensure /etc/letsencrypt/archive"
+     file:
+       state: directory
+       path:  "/etc/letsencrypt/archive"
+       mode:  0755
+       owner: root
+       group: root
+     become: true
+
+   - name: "remove old renewal.conf"
+     file:
+       path: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
+       state: absent
+     become: true
+     when: acme_force_register|bool is true
+
+   - name: "check /etc/letsencrypt/live/{{inventory_hostname}}"
+     stat:
+       path: "/etc/letsencrypt/live/{{inventory_hostname}}"
+     become: true
+     register: liveDir
+
+   - name: "mv old live dir"
+     shell: "mv /etc/letsencrypt/live/{{inventory_hostname}} \\
+             /etc/letsencrypt/live/{{inventory_hostname}}.$(date +\"%Y%m%d%H%M%S\")"
+     become: true
+     when:  
+       - liveDir.stat.exists is true
+       - acme_force_register|bool is true
+
+   - name: "check /etc/letsencrypt/archive/{{inventory_hostname}}"
+     stat:
+       path: "/etc/letsencrypt/archive/{{inventory_hostname}}"
+     become: true
+     register: archiveDir
+
+   - name: "mv old archive dir"
+     shell: "mv /etc/letsencrypt/archive/{{inventory_hostname}} \\
+             /etc/letsencrypt/archive/{{inventory_hostname}}.$(date +\"%Y%m%d%H%M%S\")"
+     become: true
+     when:  
+       - archiveDir.stat.exists is true
+       - acme_force_register|bool is true
+
+   - name: "Register certbot for {{acme_register_name_path}}"
      shell: |
-       certbot certonly --eab-kid "{{acme_key_identifier}}" --eab-hmac-key "{{acme_hmac_key}}" --server "{{acme_url}}" --email "{{acme_notification_email}}" --agree-tos --webroot -d "{{httpd_sitename}}" -n --webroot-path "{{acme_document_root}}" --rsa-key-size "{{acme_rsa_key_size}}"
+       certbot certonly --eab-kid "{{acme_key_identifier}}" --eab-hmac-key "{{acme_hmac_key}}" --server "{{acme_url}}" --email "{{acme_notification_email}}" --agree-tos --webroot -d "{{acme_register_name_path}}" -n --webroot-path "{{acme_document_root}}" --rsa-key-size "{{acme_rsa_key_size}}"
      args:
-       creates: "/etc/letsencrypt/renewal/{{httpd_sitename}}.conf"
+       creates: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
+     notify: restarthttpd
      become: true
 
    #
