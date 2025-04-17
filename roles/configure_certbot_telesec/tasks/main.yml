@@ -20,7 +20,7 @@
         - httpd_sitename!=inventory_hostname
 
    - name: "get ansible_fqdn_host"
-     shell: "set -- $(nslookup ede15t | grep Name:) ; echo $2"
+     shell: "set -- $(nslookup {{ansible_host}} | grep Name:) ; echo $2"
      register: ansible_fqdn_hostname
      changed_when: False
      ignore_errors: true
@@ -47,15 +47,6 @@
          - "acme_key_identifier     = {{acme_key_identifier}}"
          - "acme_hmac_key           = {{acme_hmac_key}}"
  
-   - name: "register deploy hook"
-     template:
-       src:  "restartApache.sh.j2"
-       dest: "/etc/letsencrypt/renewal-hooks/deploy/restartApache.sh"
-       owner: root
-       group: root
-       mode: '0755'
-     become: true
-
    - name: "ensure /etc/letsencrypt"
      file:
        state: directory
@@ -124,6 +115,15 @@
      args:
        creates: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
      notify: restarthttpd
+     become: true
+
+   - name: "register deploy hook"
+     template:
+       src:  "restartApache.sh.j2"
+       dest: "/etc/letsencrypt/renewal-hooks/deploy/restartApache.sh"
+       owner: root
+       group: root
+       mode: '0755'
      become: true
 
    #
