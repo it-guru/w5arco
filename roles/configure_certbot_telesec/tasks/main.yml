@@ -81,6 +81,12 @@
      become: true
      when: acme_force_register|bool is true
 
+   - name: "check stat of renewal.conf"
+     stat:
+       path: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
+     become: true
+     register: renewalFile
+
    - name: "check /etc/letsencrypt/live/{{inventory_hostname}}"
      stat:
        path: "/etc/letsencrypt/live/{{inventory_hostname}}"
@@ -91,9 +97,11 @@
      shell: "mv /etc/letsencrypt/live/{{inventory_hostname}} \\
              /etc/letsencrypt/live/{{inventory_hostname}}.$(date +\"%Y%m%d%H%M%S\")"
      become: true
-     when:  
-       - liveDir.stat.exists is true
-       - acme_force_register|bool is true
+     when:  >
+       (liveDir.stat.exists is true and
+        acme_force_register|bool is true) or
+       (liveDir.stat.exists is true and
+        renewalFile.stat.exists is false)
 
    - name: "check /etc/letsencrypt/archive/{{inventory_hostname}}"
      stat:
