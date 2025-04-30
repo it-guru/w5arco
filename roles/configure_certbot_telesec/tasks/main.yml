@@ -74,18 +74,42 @@
        group: root
      become: true
 
+   - name: "check stat of renewal.conf"
+     stat:
+       path: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
+     become: true
+     register: renewalFile
+
+   - name: "check /etc/letsencrypt/live/{{inventory_hostname}}/cert.pem"
+     stat:
+       path: "/etc/letsencrypt/live/{{inventory_hostname}}"
+     become: true
+     register: liveCurrentPemFile
+
+
+   - name: "unregister Cert due acme_force_register"
+     shell: |
+        certbot revoke -v \
+                       --cert-path "/etc/letsencrypt/live/{{inventory_hostname}}/cert.pem" \
+                       --server "{{acme_url}}" \
+                       --delete-after-revoke \
+                       --reason superseded \
+                       --non-interactive 
+     args:
+       removes: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
+     ignore_errors: true
+     become: true
+     when: 
+        - acme_force_register|bool is true
+        - renewalFile.stat.exists is true
+        - liveCurrentPemFile.stat.exists is true
+
    - name: "remove old renewal.conf"
      file:
        path: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
        state: absent
      become: true
      when: acme_force_register|bool is true
-
-   - name: "check stat of renewal.conf"
-     stat:
-       path: "/etc/letsencrypt/renewal/{{inventory_hostname}}.conf"
-     become: true
-     register: renewalFile
 
    - name: "check /etc/letsencrypt/live/{{inventory_hostname}}"
      stat:
