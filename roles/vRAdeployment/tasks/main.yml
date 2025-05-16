@@ -23,9 +23,18 @@
         - ansiblectrlnode_inventory_hostname in groups
         - groups[ansiblectrlnode_inventory_hostname] | length == 1
 
-   - name: planned new system configuration
+   - name: "planned new system configuration"
      debug: 
         var: "vRA"
+     when:
+       - vRA is defined
+
+   - name: "check if vRA deployment config dict is defined"
+     fail:
+        msg: "no vRA dict defined"
+     when:
+       - vRA is not defined
+
 
    - name: "using credentials ..."
      debug: 
@@ -36,21 +45,26 @@
         - "vRA_sitename: {{ vRA_sitename }}"
         - "ansiblectrlnode_inventory_hostname: {{ ansiblectrlnode_inventory_hostname }}"
      when:
+       - vRA is defined
        - vRA_debug|bool is true
 
 
    - name: load vRA_Authorization
      include_tasks:
         file: "vRA_auth.yml"
+     when:
+       - vRA is defined
 
    #- name: "debug breakpoint"
    #  fail:
    #    msg: "temp breakpoint"
    #  when: true
 
-   - name: fetch all projects to vRA_projects
+   - name: "fetch all projects to vRA_projects"
      include_tasks:
         file: "vRA_fetchProjects.yml"
+     when:
+       - vRA is defined
 
 
    - name: fetch all blueprints to vRA_blueprints

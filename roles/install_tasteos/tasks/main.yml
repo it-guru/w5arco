@@ -171,9 +171,10 @@
      when: clientInst.stat.exists is false
      become: true
 
-   - name: "scan result"
+   - name: "initial scan result"
      debug:
        var: scanCmd
+     when: clientInst.stat.exists is false
 
    - name: Creates dayly scan job
      ansible.builtin.cron:
@@ -182,6 +183,18 @@
        hour: "23"
        job: "/opt/tos-client/client.sh -m scan > /dev/null"
      become: true
+
+   - name: "run a background scan client.sh -m scan"
+     shell: "cd /opt/tos-client && ./client.sh -m scan"
+     ignore_errors: true
+     when: clientInst.stat.exists is true
+     register: bgScanCmd
+     become: true
+
+   - name: "background scan result"
+     debug:
+       var: bgScanCmd
+     when: clientInst.stat.exists is true
 
   rescue:
    - name: "block rescue to ensure following roles processing"
