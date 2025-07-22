@@ -180,6 +180,7 @@
        day: "{{acme_force_renew_day}}"
        hour: "{{acme_auto_renew_hour}}"
        job: "certbot renew -q --force-renewal"
+       state: "absent"
      become: true
      when: 
        - acme_force_renew_day|default('') != ""
