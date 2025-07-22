@@ -10,6 +10,12 @@
     path: "/etc/MachineID"
   register: etcMachineID
 
+- name: "checking for /opt/siux/siuxstart"
+  tags: [install_tasteos]
+  ansible.builtin.stat:
+    path: "/opt/siux/siuxstart"
+  register: isSiuxInstalled
+
 - name: "check /opt/tos-client"
   tags: [install_tasteos]
   ansible.builtin.stat:
@@ -33,10 +39,21 @@
     - optTosClientConfig.stat.exists is true 
     - etcMachineID.stat.mtime>optTosClientConfig.stat.mtime
 
+
+- name: "protect against siux/TasteOS parallel install"
+  tags: [install_tasteos]
+  debug:
+    msg:
+      notice: "denied TasteOS install due already installed SIUX"
+  when: 
+    - tasteos_install|bool is true
+    - isSiuxInstalled.stat.exists is true
+
 - name: install tasteos client, configuration and 1st scan
   tags: [install_tasteos]
   when: 
     - tasteos_install|bool is true
+    - isSiuxInstalled.stat.exists is false
     - TASTEOS_MACHINE_NUMBER!='' or etcMachineID.stat.exists
   block:
    - name: "check ansible file cache dir"
@@ -181,6 +198,13 @@
        name: TasteOS
        minute: "{{ 59 | random(seed=inventory_hostname) }}"
        hour: "23"
+       job: "/opt/tos-client/client.sh -m scan > /dev/null"
+     become: true
+
+   - name: Creates reboot scan job
+     ansible.builtin.cron:
+       name: TasteOSReboot
+       special_time: reboot
        job: "/opt/tos-client/client.sh -m scan > /dev/null"
      become: true
 
