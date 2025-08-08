@@ -3,19 +3,30 @@
   tags: [install_zabbix]
   when: zabbix_install | bool is true
   block:
-   - name: create zabbix group - gid does not matter
+   - name: "create zabbix group - gid does not matter"
      ansible.builtin.group:
        name: zabbix
        state: present
      become: true
 
-   - name: create zabbix user - uid does not matter
+   - name: "Check if zabbix exists in passwd database"
+     ansible.builtin.getent:
+       database: passwd
+       key: "zabbix"
+     register: zabbix_user_check
+     failed_when: false
+     changed_when: zabbix_user_check is failed
+
+   - name: "create zabbix user - uid does not matter"
      ansible.builtin.user:
        name: zabbix
-       group: zabbix
+       state: present
+       create_home: yes
        expires: -1
        comment: zabbix monitoring user
      become: true
+     when:
+       - zabbix_user_check.changed is true
 
    - name: "check ansible file cache dir"
      ansible.builtin.file:
