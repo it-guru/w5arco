@@ -44,7 +44,7 @@
   tags: [install_tasteos]
   debug:
     msg:
-      notice: "denied TasteOS install due already installed SIUX"
+      notice: "skip TasteOS install due already installed SIUX"
   when: 
     - tasteos_install|bool is true
     - isSiuxInstalled.stat.exists is true
