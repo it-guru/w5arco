@@ -10,7 +10,7 @@
       Content-Type:  "application/json"
       Accept:        "application/json"
   until: pRequest.json.status=="CREATE_SUCCESSFUL"
-  retries: 60
+  retries: 120
   delay: 10
   register: pRequest
   delegate_to: localhost
