@@ -1,0 +1,149 @@
+---
+- name: "Initialize vRA_securityGroups dict if not exists"
+  ansible.builtin.set_fact:
+    vRA_securityGroups: "{{ vRA_securityGroups | default({}) }}"
+
+- name: Encode query parameters
+  ansible.builtin.set_fact:
+    query_params: "{{ item | default({}) | urlencode }}"
+
+- name: "vRA: fetch all SecurityGroups for project {{ item.name }}"
+  ansible.builtin.uri:
+    url: "{{ vRA_sitename }}/form-service/api/forms/renderer/external-values?projectId={{ item.id }}"
+    method: POST
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{ vRA_Authorization }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      - uri: "com.vmware.pscoe.tsystems.fci.customer.ts.vro.actions.nsxt.operation.manageSG.update.form/getGroupNameWithoutPrefix"
+        dataSource: "scriptAction"
+        parameters:
+          - name: "projectId"
+            value: "{{ item.id }}"
+            useResultFromRequestId: -1
+          - name: "providedGroup"
+            value: ""
+            useResultFromRequestId: -1
+          - name: "operation"
+            value: "View"
+            useResultFromRequestId: -1
+        fieldType:
+          dataType: "string"
+          isMultiple: true
+        requestId: 1
+  register: pRequest
+  delegate_to: localhost
+
+- name: "Transform vRA Security Groups base list for {{ item.name }}"
+  ansible.builtin.set_fact:
+    current_project_groups: >-
+      {%- set result = {} -%}
+      {%- for rec in pRequest.json[0].data -%}
+        {%- set full_val = rec.value -%}
+        {%- set name_part = full_val | regex_replace('^(.*) \\((.*)\\)$', '\\1') -%}
+        {%- set type_part = full_val | regex_replace('^(.*) \\((.*)\\)$', '\\2') -%}
+        {%- set _ = result.update({
+          full_val: {
+            'fullname': full_val,
+            'name': name_part,
+            'ProjektName': item.name,
+            'ProjektId': item.id,
+            'type': type_part
+          }
+        }) -%}
+      {%- endfor -%}
+      {{ result }}
+
+- name: "vRA: fetch details for all groups in {{ item.name }}"
+  ansible.builtin.uri:
+    url: "{{ vRA_sitename }}/form-service/api/forms/renderer/external-values?projectId={{ item.id }}"
+    method: POST
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{ vRA_Authorization }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      - uri: "com.vmware.pscoe.tsystems.fci.customer.ts.vro.actions.nsxt.operation.manageSG.view.form/getGroupsByName"
+        dataSource: "scriptAction"
+        parameters:
+          - name: "projectId"
+            value: "{{ item.id }}"
+            useResultFromRequestId: -1
+          - name: "groupNameAndTypeList"
+            value: "{{ current_project_groups.keys() | list }}"
+            useResultFromRequestId: -1
+          - name: "operation"
+            value: "View"
+            useResultFromRequestId: -1
+        fieldType:
+          dataType: "complex"
+          fields:
+            - label: "Name"
+              id: "name"
+              type:
+                dataType: "string"
+            - label: "Type"
+              id: "type"
+              type:
+                dataType: "string"
+            - label: "IP Address/Range"
+              id: "ipset"
+              type:
+                dataType: "string"
+            - label: "Virtual Machines"
+              id: "vm"
+              type:
+                dataType: "string"
+            - label: "Segments"
+              id: "segments"
+              type:
+                dataType: "string"
+            - label: "Tags"
+              id: "tags"
+              type:
+                dataType: "string"
+            - label: "Groups"
+              id: "groups"
+              type:
+                dataType: "string"
+          isMultiple: true
+        requestId: 1
+  register: pRequest
+  delegate_to: localhost
+
+- name: "Merge details and store under project name '{{ item.name }}'"
+  ansible.builtin.set_fact:
+    vRA_securityGroups: "{{ vRA_securityGroups | combine({ item.name: merged_project_dict }) }}"
+  vars:
+    merged_project_dict: >-
+      {%- set detail_map = {} -%}
+      {%- for entry in (pRequest.json[0].data | default([])) -%}
+        {%- set full_key = entry.name ~ ' (' ~ entry.type ~ ')' -%}
+        {%- set ip_list = (entry.ipset | default('')).split(',') | map('trim') | reject('eq', '') | list -%}
+        {%- set vm_list = (entry.vm | default('')).split(',') | map('trim') | reject('eq', '') | list -%}
+        {%- set _ = detail_map.update({
+          full_key: {
+            'ipset': ip_list,
+            'vm': vm_list
+          }
+        }) -%}
+      {%- endfor -%}
+
+      {%- set merged_dict = {} -%}
+      {%- for key, orig_val in current_project_groups.items() -%}
+        {%- set details = detail_map.get(key, {}) -%}
+        {%- set combined = orig_val | combine({
+            'ipset': details.get('ipset', []),
+            'vm': details.get('vm', [])
+        }) -%}
+        {%- set _ = merged_dict.update({key: combined}) -%}
+      {%- endfor -%}
+      {{ merged_dict }}
+

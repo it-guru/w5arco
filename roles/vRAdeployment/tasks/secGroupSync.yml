@@ -1,0 +1,212 @@
+- name: generic deploy a blueprint in vRA
+  tags: [vRAdeployment]
+  block:
+
+   - name: "calculate ansible_ctrlnode name: get uname -n"
+     shell:
+        cmd: "uname -n"
+     register: get_uname
+     changed_when: false
+     delegate_to: "localhost"
+
+
+   - name: "calculate ansible control node name"
+     set_fact:
+        ansiblectrlnode_inventory_hostname: "{{get_uname.stdout}}"
+
+   - name: "collect functional alias ansiblectrlnode_inventory_hostname"
+     set_fact:
+        ansiblectrlnode_inventory_hostname: "{{groups[ansiblectrlnode_inventory_hostname][0]}}"
+     when:
+        - ansiblectrlnode_inventory_hostname in groups
+        - groups[ansiblectrlnode_inventory_hostname] | length == 1
+
+   - name: "planned new system configuration"
+     debug:
+        msg:
+          vRA: "{{vRA}}"
+          vRA_baseSecurityGroups: "{{vRA_baseSecurityGroups}}"
+     when:
+       - vRA is defined
+
+   - name: "check if vRA deployment config dict is defined"
+     fail:
+        msg: "no vRA dict defined"
+     when:
+       - vRA is not defined
+
+   - name: "using credentials ..."
+     debug:
+       msg:
+        - "vRA_username: {{ vRA_username }}"
+        - "vRA_addomain: {{ vRA_addomain }}"
+        - "vRA_password: {{ vRA_password | regex_replace('.','x')}}"
+        - "vRA_sitename: {{ vRA_sitename }}"
+        - "ansiblectrlnode_inventory_hostname: {{ ansiblectrlnode_inventory_hostname }}"
+     when:
+       - vRA is defined
+       - vRA_debug|bool is true
+
+   - name: load vRA_Authorization
+     include_tasks:
+        file: "vRA_auth.yml"
+     when:
+       - vRA is defined
+
+   #- name: "debug breakpoint"
+   #  fail:
+   #    msg: "temp breakpoint"
+   #  when: true
+
+   - name: "fetch all projects to vRA_projects"
+     include_tasks:
+        file: "vRA_fetchProjects.yml"
+     when:
+       - vRA is defined
+
+   - name: "projects"
+     debug:
+       var: vRA_projects
+     when:
+       - vRA_debug|bool is true
+
+   - name: fetch all blueprints to vRA_blueprints
+     include_tasks:
+        file: "vRA_fetchSecurityGroups.yml"
+     loop: "{{vRA_projects}}"
+
+   - name: "json result at vRA_securityGroups"
+     debug:
+       var: vRA_securityGroups
+     when:
+       - vRA_debug|bool is true
+
+   - name: "calc needed operations SecurityGroups"
+     set_fact:
+       vRA_secgroup_actions: >-
+         {%- set actions = [] -%}
+         {%- set base_groups = {} -%}
+         {%- if vRA_baseSecurityGroups is defined and vRA_baseSecurityGroups -%}
+           {%- for g_name, ips in vRA_baseSecurityGroups.items() -%}
+             {%- set ip_list = [ips] if ips is string else ips -%}
+             {%- set _ = base_groups.update({g_name: ip_list | map('trim') | list}) -%}
+           {%- endfor -%}
+         {%- endif -%}
+
+         {%- set add_groups = {} -%}
+         {%- if vRA.add2SecurityGroups is defined and vRA.add2SecurityGroups -%}
+           {%- for g_name, ips in vRA.add2SecurityGroups.items() -%}
+             {%- set ip_list = [ips] if ips is string else ips -%}
+             {%- set _ = add_groups.update({g_name: ip_list | map('trim') | list}) -%}
+           {%- endfor -%}
+         {%- endif -%}
+
+         {%- set all_added_ips = [] -%}
+         {%- for ips in add_groups.values() -%}
+           {%- set _ = all_added_ips.extend(ips) -%}
+         {%- endfor -%}
+         {%- set all_added_ips = all_added_ips | unique -%}
+
+         {%- for proj_name, existing_groups in vRA_securityGroups.items() -%}
+           
+           {%- set target_state = {} -%}
+
+           {%- for full_name, g_data in existing_groups.items() -%}
+             {%- if g_data.type == 'IPSET' -%}
+               {%- set _ = target_state.update({g_data.name: g_data.ipset | default([]) | list}) -%}
+             {%- endif -%}
+           {%- endfor -%}
+
+           {%- for bg_name, bg_ips in base_groups.items() -%}
+             {%- set _ = target_state.update({bg_name: bg_ips}) -%}
+           {%- endfor -%}
+
+           {%- for g_name, ips in target_state.items() -%}
+             {%- if g_name not in base_groups and g_name not in add_groups -%}
+               {%- set cleaned_ips = [] -%}
+               {%- for ip in ips -%}
+                 {%- if ip not in all_added_ips -%}
+                   {%- set _ = cleaned_ips.append(ip) -%}
+                 {%- endif -%}
+               {%- endfor -%}
+               {%- set _ = target_state.update({g_name: cleaned_ips}) -%}
+             {%- endif -%}
+           {%- endfor -%}
+
+           {%- for ag_name, ag_ips in add_groups.items() -%}
+             {%- set current_ips = target_state.get(ag_name, []) -%}
+             {%- set merged_ips = (current_ips + ag_ips) | unique -%}
+             {%- set _ = target_state.update({ag_name: merged_ips}) -%}
+           {%- endfor -%}
+
+           {%- set relevant_group_names = (target_state.keys() | list + existing_groups.keys() | map('regex_replace', ' \(IPSET\)$', '') | list) | unique -%}
+
+           {%- for g_name in relevant_group_names -%}
+             {%- if g_name in base_groups or g_name in add_groups or g_name in target_state -%}
+               
+               {%- set full_key = g_name + " (IPSET)" -%}
+               {%- set exists = full_key in existing_groups -%}
+               
+               {%- set target_ips = target_state.get(g_name, []) | sort -%}
+
+               {%- if not exists -%}
+                 {%- if g_name in base_groups or g_name in add_groups -%}
+                   {%- set action_item = {
+                       'action': 'create',
+                       'project_name': proj_name,
+                       'group_name': g_name,
+                       'target_ips': target_ips
+                   } -%}
+                   {%- set _ = actions.append(action_item) -%}
+                 {%- endif -%}
+
+               {%- else -%}
+                 {%- set current_ips = existing_groups[full_key].ipset | default([]) | sort -%}
+                 
+                 {%- if current_ips != target_ips -%}
+                   {%- set action_item = {
+                       'action': 'update',
+                       'project_name': proj_name,
+                       'group_name': g_name,
+                       'fullname': full_key,
+                       'current_ips': current_ips,
+                       'target_ips': target_ips
+                   } -%}
+                   {%- set _ = actions.append(action_item) -%}
+                 {%- endif -%}
+
+               {%- endif -%}
+
+             {%- endif -%}
+           {%- endfor -%}
+
+         {%- endfor -%}
+         {{ actions | to_json }}
+
+   - name: "show calculated operations"
+     debug:
+       msg:
+          vRA_secgroup_actions: "{{vRA_secgroup_actions}}"
+     when:
+       - vRA_debug|bool is true
+
+   - name: "exec Create-Tasks aus"
+     include_tasks: vRA_createSecurityGroup.yml
+     loop: "{{ (vRA_secgroup_actions|from_json) | selectattr('action', 'equalto', 'create') | list }}"
+     loop_control:
+       loop_var: secgroup_item
+
+   - name: "exec Update-Tasks aus"
+     include_tasks: vRA_updateSecurityGroup.yml
+     loop: "{{ (vRA_secgroup_actions|from_json) | selectattr('action', 'equalto', 'update') | list }}"
+     loop_control:
+       loop_var: secgroup_item
+
+
+
+
+
+
+
+
+

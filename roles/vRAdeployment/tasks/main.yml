@@ -9,6 +9,7 @@
      shell:
         cmd: "uname -n"
      register: get_uname
+     changed_when: false
      delegate_to: "localhost"
 
 

@@ -1,0 +1,51 @@
+- name: "[DEBUG] Create SecurityGroup"
+  debug:
+    msg: "CREATE -> Projekt: {{ secgroup_item.project_name }} | Gruppe: {{ secgroup_item.group_name }} | IPs: {{ secgroup_item.target_ips }}"
+
+- name: "Generate current timestamp for deployment name"
+  ansible.builtin.set_fact:
+    vRA_deployment_timestamp: "{{ lookup('pipe', 'date +\"%d.%m.%Y %H:%M:%S\"') }}"
+
+- name: "Get project ID for {{ secgroup_item.project_name }}"
+  ansible.builtin.set_fact:
+    vRA_current_project_id: >-
+      {%- set match = vRA_projects | default([]) | selectattr('name', 'equalto', secgroup_item.project_name) | list -%}
+      {%- if match | length > 0 -%}
+        {{ match[0].id }}
+      {%- else -%}
+        {{ (vRA_securityGroups[secgroup_item.project_name].values() | list | first).ProjektId }}
+      {%- endif -%}
+
+- name: "vRA: Create new Security Group {{ secgroup_item.group_name }} in project {{ secgroup_item.project_name }}"
+  ansible.builtin.uri:
+    url: "{{ vRA_sitename }}/catalog/api/items/10ff118f-b0f5-370f-952f-aa0beb4560f5/request"
+    method: POST
+    use_proxy: false
+    use_netrc: false
+    headers:
+      Authorization: "{{ vRA_Authorization }}"
+      Content-Type: "application/json"
+      Accept: "application/json"
+    body_format: json
+    body:
+      deploymentName: "ansible Managed SecurityGroups create {{ vRA_deployment_timestamp }}"
+      projectId: "{{ vRA_current_project_id }}"
+      bulkRequestCount: 1
+      inputs:
+        action: "Create"
+        name: "{{ secgroup_item.group_name }}"
+        groupType: "IPSET"
+        ipAddress: "{{ secgroup_item.target_ips | join(',') }}"
+        virtualMachines: []
+        segments: []
+        nestedGroupsUpdate: []
+    status_code: [200, 201, 202]
+  register: vRA_create_request
+  delegate_to: localhost
+
+- name: "Debug vRA request response"
+  ansible.builtin.debug:
+    var: vRA_create_request.json
+  when: vRA_debug | default(false) | bool
+
+

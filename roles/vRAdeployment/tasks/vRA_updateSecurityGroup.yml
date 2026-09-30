@@ -1,0 +1,76 @@
+- name: "[DEBUG] Update SecurityGroup"
+  debug:
+    msg: "UPDATE -> Projekt: {{ secgroup_item.project_name }} | Gruppe: {{ secgroup_item.group_name }} | Alt-IPs: {{ secgroup_item.current_ips }} -> Neu-IPs: {{ secgroup_item.target_ips }}"
+
+
+- name: "Check if update is an IP reduction operation"
+  ansible.builtin.set_fact:
+    is_ip_reduction: "{{ secgroup_item.target_ips | length < secgroup_item.current_ips | length }}"
+
+- name: "WARN: Log skipped reduction when force flag is missing"
+  ansible.builtin.assert:
+    that:
+      - not (is_ip_reduction | bool) or (force_syncSecurityGroups | default('') == w5sysname | default(''))
+    fail_msg: "WARNING: Skip update for {{ secgroup_item.group_name }} in project {{ secgroup_item.project_name }} due to missing force_syncSecurityGroups == '{{ w5sysname }}'"
+  ignore_errors: true
+
+- name: "Log skipped reduction when force flag is missing"
+  ansible.builtin.debug:
+    msg: "Skip update for {{ secgroup_item.group_name }} in project {{ secgroup_item.project_name }} due to missing force_syncSecurityGroups == '{{ w5sysname }}'"
+  when:
+    - is_ip_reduction | bool
+    - force_syncSecurityGroups | default('') != w5sysname | default('')
+
+- name: "Execute vRA Security Group update"
+  block:
+    - name: "Generate current timestamp for deployment name"
+      ansible.builtin.set_fact:
+        vRA_deployment_timestamp: "{{ lookup('pipe', 'date +\"%d.%m.%Y %H:%M:%S\"') }}"
+
+    - name: "Get project ID for {{ secgroup_item.project_name }}"
+      ansible.builtin.set_fact:
+        vRA_current_project_id: >-
+          {%- set match = vRA_projects | default([]) | selectattr('name', 'equalto', secgroup_item.project_name) | list -%}
+          {%- if match | length > 0 -%}
+            {{ match[0].id }}
+          {%- else -%}
+            {{ (vRA_securityGroups[secgroup_item.project_name].values() | list | first).ProjektId }}
+          {%- endif -%}
+
+    - name: "vRA: Update Security Group {{ secgroup_item.group_name }} in project {{ secgroup_item.project_name }}"
+      ansible.builtin.uri:
+        url: "{{ vRA_sitename }}/catalog/api/items/10ff118f-b0f5-370f-952f-aa0beb4560f5/request"
+        method: POST
+        use_proxy: false
+        use_netrc: false
+        headers:
+          Authorization: "{{ vRA_Authorization }}"
+          Content-Type: "application/json"
+          Accept: "application/json"
+        body_format: json
+        body:
+          deploymentName: "ansbible Managed SecurityGroups update {{ vRA_deployment_timestamp }}"
+          projectId: "{{ vRA_current_project_id }}"
+          bulkRequestCount: 1
+          inputs:
+            action: "Update"
+            elementToUpdate: "{{ secgroup_item.fullname }}"
+            name: "{{ secgroup_item.group_name }}"
+            groupType: "IPSET"
+            ipAddress: "{{ secgroup_item.target_ips | join(',') }}"
+            virtualMachines: []
+            segments: []
+            nestedGroupsUpdate: []
+        status_code: [200, 201, 202]
+      register: vRA_update_request
+      delegate_to: localhost
+
+    - name: "Debug vRA request response"
+      ansible.builtin.debug:
+        var: vRA_update_request.json
+      when: vRA_debug | default(false) | bool
+
+  when:
+    - not (is_ip_reduction | bool) or (force_syncSecurityGroups | default('') == w5sysname | default(''))
+
+
