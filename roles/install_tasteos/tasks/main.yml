@@ -9,24 +9,32 @@
   ansible.builtin.stat:
     path: "/etc/MachineID"
   register: etcMachineID
+  when: 
+    - ansible_os_family != "Windows"
 
 - name: "checking for /opt/siux/siuxstart"
   tags: [install_tasteos]
   ansible.builtin.stat:
     path: "/opt/siux/siuxstart"
   register: isSiuxInstalled
+  when: 
+    - ansible_os_family != "Windows"
 
 - name: "check /opt/tos-client"
   tags: [install_tasteos]
   ansible.builtin.stat:
     path: "/opt/tos-client"
   register: optTosClient
+  when: 
+    - ansible_os_family != "Windows"
 
 - name: "check /opt/tos-client/config.sh"
   tags: [install_tasteos]
   ansible.builtin.stat:
     path: "/opt/tos-client"
   register: optTosClientConfig
+  when: 
+    - ansible_os_family != "Windows"
 
 - name: "remove /opt/tos-client due new /etc/MachineID"
   tags: [install_tasteos]
@@ -35,6 +43,7 @@
     state: absent
   become: true
   when: 
+    - ansible_os_family != "Windows"
     - etcMachineID.stat.exists is true 
     - optTosClientConfig.stat.exists is true 
     - etcMachineID.stat.mtime>optTosClientConfig.stat.mtime
@@ -46,12 +55,14 @@
     msg:
       notice: "skip TasteOS install due already installed SIUX"
   when: 
+    - ansible_os_family != "Windows"
     - tasteos_install|bool is true
     - isSiuxInstalled.stat.exists is true
 
 - name: install tasteos client, configuration and 1st scan
   tags: [install_tasteos]
   when: 
+    - ansible_os_family != "Windows"
     - tasteos_install|bool is true
     - isSiuxInstalled.stat.exists is false
     - TASTEOS_MACHINE_NUMBER!='' or etcMachineID.stat.exists
@@ -229,6 +240,7 @@
 - name: uninstall taseos
   tags: [install_tasteos]
   when: 
+    - ansible_os_family != "Windows" 
     - TASTEOS_MACHINE_NUMBER=='' 
     - etcMachineID.stat.exists is false
   block:
@@ -246,6 +258,7 @@
        path: "/opt/tos-client"
        state: absent
      become: true
+
 
   rescue:
    - name: "block rescue to ensure following roles processing"

@@ -24,10 +24,8 @@
    - name: "planned new system configuration"
      debug:
         msg:
-          vRA: "{{vRA}}"
-          vRA_baseSecurityGroups: "{{vRA_baseSecurityGroups}}"
-     when:
-       - vRA is defined
+          vRA: "{{vRA | default({})}}"
+          vRA_baseSecurityGroups: "{{vRA_baseSecurityGroups | default({})}}"
 
    - name: "check if vRA deployment config dict is defined"
      fail:

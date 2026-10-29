@@ -1,6 +1,9 @@
 ---
 
-vRA_username: "{{ lookup('env', 'W5ANSIBLE_ADUSER') }}"
-vRA_addomain: "{{ lookup('env', 'W5ANSIBLE_ADCONTROLER') }}"
-vRA_password: "{{ lookup('env', 'W5ANSIBLE_ADPASS') }}"
+#vRA_username: "{{ lookup('env', 'W5ANSIBLE_ADUSER') }}"
+#vRA_addomain: "{{ lookup('env', 'W5ANSIBLE_ADCONTROLER') }}"
+#vRA_password: "{{ lookup('env', 'W5ANSIBLE_ADPASS') }}"
+vRA_username: "{{ lookup('env', 'ANSIBLE_ADUSER') | default(lookup('env', 'W5ANSIBLE_ADUSER'), true) }}"
+vRA_addomain: "{{ lookup('env', 'ANSIBLE_ADCONTROLER') | default(lookup('env', 'W5ANSIBLE_ADCONTROLER'), true) }}"
+vRA_password: "{{ lookup('env', 'ANSIBLE_ADPASS') | default(lookup('env', 'W5ANSIBLE_ADPASS'), true) }}"
 

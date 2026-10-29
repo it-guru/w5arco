@@ -1,7 +1,9 @@
 ---
 - name: install ZABBIX Agent
   tags: [install_zabbix]
-  when: zabbix_install | bool is true
+  when: 
+     - ansible_os_family != "Windows"
+     - zabbix_install | bool is true
   block:
    - name: "create zabbix group - gid does not matter"
      ansible.builtin.group:
