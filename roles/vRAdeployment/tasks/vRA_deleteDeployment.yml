@@ -23,15 +23,28 @@
   register: pRequest
   delegate_to: localhost
 
+
+- name: "vRA_deleteDeployment: requested item for delete operation"
+  debug:
+    msg:
+      deleteRequestResult: "{{pRequest}}"
+
 - name: "wait for normal delete"
   wait_for:
-    timeout: 10
+    timeout: 45
   delegate_to: localhost
 
 - name: sleep 5min. , if previus status was CREATE_SUCCESSFUL
   pause:
      seconds: 300
-  when: item.status=="CREATE_SUCCESSFUL"
+  when: >
+       item.status=="CREATE_SUCCESSFUL" 
+
+- name: sleep 20min. , if previus status was CREATE_FAILED
+  pause:
+     seconds: 1200
+  when: >
+       item.status=="CREATE_FAILED"
 
 - name: "vRA_deleteDeployment: result of delete request"
   debug:
