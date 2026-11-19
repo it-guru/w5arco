@@ -1,5 +1,5 @@
 ---
-- name: install ZABBIX Agent
+- name: "install ZABBIX Agent on unix"
   tags: [install_zabbix]
   when: 
      - ansible_os_family != "Windows"
@@ -74,8 +74,8 @@
      block: 
       - name: "Download latest zabbix client from Zabbix Site"
         ansible.builtin.get_url:
-          url: "{{srcurl}}"
-          dest: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
+          url: "{{zabbix_agent_srcbase}}/{{zabbix_unix_agent_srcfile}}"
+          dest: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_unix_agent_srcfile}}"
           backup: true
           use_netrc: false
           timeout: 60
@@ -91,7 +91,7 @@
       - name: "touch file, if download was OK"
         file:
           state: "touch"
-          path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
+          path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_unix_agent_srcfile}}"
           modification_time: "now"
         ignore_errors: true
         changed_when: false
@@ -120,39 +120,39 @@
 
    - name: check local (ansible server) cache
      ansible.builtin.stat:
-       path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
+       path: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_unix_agent_srcfile}}"
      register: localCache
      delegate_to: localhost
 
-   - name: "Fail to find a webCached {{zabbix_agent_srctar}}"
+   - name: "Fail to find a webCached {{zabbix_unix_agent_srcfile}}"
      fail:
-       msg: "Whoops! can not find a useable {{zabbix_agent_srctar}}"
+       msg: "Whoops! can not find a useable {{zabbix_unix_agent_srcfile}}"
      when: localCache.stat.exists is false
      delegate_to: localhost
 
 
    - name: Copy file
      ansible.builtin.copy:
-       src: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_agent_srctar}}"
+       src: "{{ansiblesrv_var_base}}/webcache/zabbix/{{zabbix_unix_agent_srcfile}}"
        dest: "/var/cache/ansible"
      when: AnsibleCacheDir.stat.exists==true
      become: true
 
-   - name: "transfer local cached {{zabbix_agent_srctar}} to remote system"
+   - name: "transfer local cached {{zabbix_unix_agent_srcfile}} to remote system"
      copy:
        src: "{{localCache.stat.path}}"
-       dest: "/var/cache/ansible/{{zabbix_agent_srctar}}"
+       dest: "/var/cache/ansible/{{zabbix_unix_agent_srcfile}}"
      when: localCache.stat.exists
      become: true
 
    - name: check remote cache
      ansible.builtin.stat:
-       path: "/var/cache/ansible/{{zabbix_agent_srctar}}"
+       path: "/var/cache/ansible/{{zabbix_unix_agent_srcfile}}"
      register: remoteCache
      become: true
 
    - name: "run remote unpack of zabbix agent"
-     shell: "mkdir /tmp/zabbixinst.temp;tar -xvf /var/cache/ansible/{{zabbix_agent_srctar}}  -C /tmp/zabbixinst.temp"
+     shell: "mkdir /tmp/zabbixinst.temp;tar -xvf /var/cache/ansible/{{zabbix_unix_agent_srcfile}}  -C /tmp/zabbixinst.temp"
      ignore_errors: true
      when: 
         - remoteCache.stat.exists is true
@@ -178,6 +178,82 @@
      when: 
         - alreadyInst.stat.exists is false
      become: true
+
+  rescue:
+   - name: "block rescue to ensure following roles processing"
+     debug:
+       msg: "error ocured - there is need to handle it manualy"
+
+
+
+
+
+- name: "install ZABBIX Agent on Windows"
+  tags: [install_zabbix]
+  when: 
+     - ansible_os_family == "Windows"
+     - zabbix_install | bool is true
+  block:
+      - name: "Check if Zabbix is already installed"
+        ansible.windows.win_stat:
+          path: 'D:\zabbix_agent\bin\zabbix_agentd.exe'
+        register: zabbix_agentd_exe
+
+      - name: "Download zabbix.zip windows package"
+        ansible.windows.win_get_url:
+          url: "{{zabbix_agent_srcbase}}/{{zabbix_win_agent_srcfile}}"
+          dest: 'C:\Windows\Temp\zabbix.zip'
+          validate_certs: false
+        when: not zabbix_agentd_exe.stat.exists
+
+      - name: "Extract zabbix.zip in Windows/Temp"
+        community.windows.win_unzip:
+          src: 'C:\Windows\Temp\zabbix.zip'
+          dest: 'C:\Windows\Temp'
+          create_dirs: yes
+        when: not zabbix_agentd_exe.stat.exists
+
+      - name: "set sourcedir"
+        set_fact:
+          zabbix_src_dir: 'C:\Windows\Temp\ZABBIX_AGENT_6.0.44_WIN_V1.7'
+
+      - name: "create Zabbix Firewall-Rule and install Agent"
+        ansible.windows.win_powershell:
+         script: |
+          $ErrorActionPreference = 'Stop'
+
+          $ruleName = 'Zabbix Proxy Connection'
+          if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
+              New-NetFirewallRule `
+                  -DisplayName $ruleName `
+                  -Direction Inbound `
+                  -Action Allow `
+                  -Protocol TCP `
+                  -LocalPort 10050 | Out-Null
+          }
+          net.exe user X15721599 /domain
+          if ($LASTEXITCODE -ne 0) {
+              throw "net user X15721599 /domain fail(ExitCode: $LASTEXITCODE)"
+          }
+
+          if (-not (Test-Path -Path '{{zabbix_src_dir}}')) {
+              throw "Directory not found: {{zabbix_src_dir}}"
+          }
+
+          Set-Location -Path '{{zabbix_src_dir}}'
+          & cmd.exe /c "install_agent.cmd -proxy_ip {{zabbix_proxyip}}"
+          if ($LASTEXITCODE -ne 0) {
+              throw "install_agent.cmd failed (ExitCode: $LASTEXITCODE)"
+          }
+        when: not zabbix_agentd_exe.stat.exists
+
+      - name: "Clean up temporary zabbix installation files"
+        ansible.windows.win_file:
+          path: '{{ item }}'
+          state: absent
+        loop:
+          - 'C:\Windows\Temp\zabbix.zip'
+          - 'C:\Windows\Temp\ZABBIX_AGENT_6.0.44_WIN_V1.7'
 
   rescue:
    - name: "block rescue to ensure following roles processing"

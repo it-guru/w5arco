@@ -5,6 +5,7 @@ global_Operations_EMail: "root"
 
 zabbix_proxyip: "0.0.0.0"
 zabbix_agent_srcbase: "https://pacman.telekom.de/pkgshare/10_ZABBIX"
-zabbix_agent_srctar:  "zabbix_agent_installer.unix.latest.tar"
-zabbix_agent_targetdir:  "/opt/zabbix_agent"
+zabbix_unix_agent_srcfile:     "zabbix_agent_installer.unix.latest.tar"
+zabbix_win_agent_srcfile:      "zabbix_agent_installer.win.latest.zip"
+zabbix_unix_agent_targetdir:  "/opt/zabbix_agent"
 
