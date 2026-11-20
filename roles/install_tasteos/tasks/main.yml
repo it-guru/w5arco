@@ -59,7 +59,7 @@
     - tasteos_install|bool is true
     - isSiuxInstalled.stat.exists is true
 
-- name: install tasteos client, configuration and 1st scan
+- name: "install tasteos client, configuration and 1st scan"
   tags: [install_tasteos]
   when: 
     - ansible_os_family != "Windows"
@@ -237,12 +237,15 @@
        msg: "error ocured - there is need to handle it manualy"
 
 
-- name: uninstall taseos
+- name: "uninstall taseos"
   tags: [install_tasteos]
-  when: 
-    - ansible_os_family != "Windows" 
-    - TASTEOS_MACHINE_NUMBER=='' 
-    - etcMachineID.stat.exists is false
+  when: | 
+    (  ansible_os_family != "Windows" and
+       TASTEOS_MACHINE_NUMBER=='' and
+       etcMachineID.stat.exists is false ) or 
+    (  ansible_os_family != "Windows" and
+       tasteos_install|default(0)|bool is false )
+   
   block:
    - name: "check dayly scan job"
      ansible.builtin.cron:
